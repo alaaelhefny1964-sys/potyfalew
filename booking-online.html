@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>احجز مكانك - مستر علاء الحفنى</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Cairo',sans-serif}
+body{background:#f1f5f9;color:#0f172a;min-height:100vh}
+.hero{background:#fff;text-align:center;padding:48px 20px}
+.hero h1{font-size:32px;font-weight:900}
+.hero h1 span{color:#d97706}
+.hero p{color:#64748b;margin-top:10px}
+.form-wrap{max-width:640px;margin:-10px auto 40px;background:#0f172a;color:#fff;border-radius:24px;padding:32px 24px}
+label{display:block;font-weight:700;margin:14px 0 6px;font-size:14px}
+input,select,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#fff;font-family:inherit;font-size:14px}
+select option{color:#000}
+button.submit{width:100%;margin-top:20px;padding:16px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border:none;border-radius:14px;font-size:18px;font-weight:900;cursor:pointer}
+#groups{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.g{border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;cursor:pointer;font-size:13px}
+.g.sel{border-color:#f59e0b;background:rgba(245,158,11,.15)}
+.ok{display:none;text-align:center;padding:20px}
+@media(max-width:600px){#groups{grid-template-columns:1fr}.hero h1{font-size:24px}}
+</style>
+</head>
+<body>
+<div class="hero">
+<h1>احجز مكانك <span>اونلاين</span> في دقيقة</h1>
+<p>عبئ بياناتك وهنتواصل معاك خلال 24 ساعة لتأكيد الحجز</p>
+</div>
+<div class="form-wrap">
+<div id="formBox">
+<label>اسم الطالب الثلاثي *</label>
+<input id="name" placeholder="مثال: محمد أحمد عبدالله">
+<label>رقم هاتف الطالب *</label>
+<input id="phone" dir="ltr" placeholder="01xxxxxxxxx">
+<label>هاتف ولي الأمر</label>
+<input id="parentPhone" dir="ltr" placeholder="01xxxxxxxxx">
+<label>المرحلة *</label>
+<select id="stage"><option value="">-- جاري التحميل... --</option></select>
+<label>المجموعة *</label>
+<div id="groups"><p style="opacity:.5">اختر المرحلة أولا</p></div>
+<label>نظام الدفع</label>
+<select id="pay"><option value="monthly">اشتراك شهري</option><option value="session">دفع بالحصة</option></select>
+<label>ملاحظات</label>
+<textarea id="notes" rows="2"></textarea>
+<button class="submit" onclick="send()">ارسال طلب الحجز</button>
+<p id="msg" style="text-align:center;margin-top:12px;min-height:24px"></p>
+</div>
+<div id="okBox" class="ok">
+<div style="font-size:60px">🎉</div>
+<h2>تم ارسال طلبك بنجاح!</h2>
+<p id="reqId"></p>
+<p style="opacity:.6">سيتواصل معك مستر علاء خلال 24 ساعة</p>
+</div>
+</div>
+<script>
+// ===== الصق رابط الـ Web App هنا بعد النشر =====
+const GOOGLE_SCRIPT_URL = "PUT_YOUR_WEB_APP_URL_HERE";
+
+let STAGES=[], GROUPS=[], SEL=null;
+async function load(){
+  try{
+    const r = await fetch(GOOGLE_SCRIPT_URL+"?action=lists");
+    const j = await r.json();
+    STAGES=j.stages||[]; GROUPS=j.groups||[];
+    const s=document.getElementById('stage');
+    s.innerHTML='<option value="">-- اختر المرحلة --</option>'+STAGES.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+    s.onchange=renderGroups;
+  }catch(e){
+    document.getElementById('stage').innerHTML='<option value="">تعذر التحميل - تأكد من رابط السكربت</option>';
+  }
+}
+function renderGroups(){
+  const sid=document.getElementById('stage').value;
+  SEL=null;
+  const box=document.getElementById('groups');
+  const list=GROUPS.filter(g=>String(g.stageId)===String(sid));
+  box.innerHTML=list.map(g=>`<div class="g" data-id="${g.id}" onclick="pick(${g.id},this)"><b>${g.name}</b><br><small>${g.days||''} - ${g.time||''} - ${g.price||''} ج</small></div>`).join('')||'<p>لا مجموعات متاحة</p>';
+}
+function pick(id,el){
+  SEL=id;
+  document.querySelectorAll('.g').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel');
+}
+async function send(){
+  const name=document.getElementById('name').value.trim();
+  const phone=document.getElementById('phone').value.trim();
+  const stageId=document.getElementById('stage').value;
+  const msg=document.getElementById('msg');
+  if(name.length<5){msg.textContent='اكتب الاسم الثلاثي';return}
+  if(!/^01[0-9]{8,9}$/.test(phone)){msg.textContent='رقم الهاتف غير صحيح';return}
+  if(!stageId){msg.textContent='اختر المرحلة';return}
+  if(!SEL){msg.textContent='اختر المجموعة';return}
+  const st=STAGES.find(x=>String(x.id)===String(stageId))||{};
+  const gr=GROUPS.find(x=>String(x.id)===String(SEL))||{};
+  msg.textContent='جاري الارسال...';
+  try{
+    const r=await fetch(GOOGLE_SCRIPT_URL,{
+      method:'POST',
+      body:JSON.stringify({
+        name, phone,
+        parentPhone:document.getElementById('parentPhone').value.trim(),
+        address:'',
+        stageId, stageName:st.name||'',
+        groupId:SEL, groupName:gr.name||'',
+        paymentType:document.getElementById('pay').value,
+        notes:document.getElementById('notes').value.trim()
+      })
+    });
+    const j=await r.json();
+    if(j.ok){
+      document.getElementById('formBox').style.display='none';
+      const ok=document.getElementById('okBox');
+      ok.style.display='block';
+      document.getElementById('reqId').textContent='رقم الطلب: '+j.id;
+    }else{msg.textContent='حدث خطأ: '+(j.error||'');}
+  }catch(e){msg.textContent='تعذر الاتصال - حاول لاحقا';}
+}
+load();
+</script>
+</body>
+</html>
